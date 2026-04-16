@@ -6,7 +6,7 @@ const sequelize = require('./config/database');
 require('./models'); // Load associations
 
 const app = express();
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
@@ -29,13 +29,10 @@ app.use('/api/posts', require('./routes/posts'));
 app.use('/api/challenges', require('./routes/challenges'));
 app.use('/api/notifications', require('./routes/notifications'));
 
-// Serve static files from the React app in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../dist')));
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../dist/index.html'));
-  });
-}
+// Add a root route for Render health check
+app.get("/", (req, res) => {
+  res.send("Backend running 🚀");
+});
 
 // Sync Database and Start Server
 // NOTE: { alter: true } is safe for development but should be replaced by migrations in production to prevent unexpected data loss
