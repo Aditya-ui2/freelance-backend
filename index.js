@@ -36,9 +36,9 @@ app.get("/", (req, res) => {
 
 // Sync Database and Start Server
 // NOTE: { alter: true } is safe for development but should be replaced by migrations in production to prevent unexpected data loss
-sequelize.sync()
+sequelize.sync({ alter: true })
   .then(() => {
-    console.log('✅ SQL Database Synced');
+    console.log('✅ SQL Database Synced with Schema Alter');
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
     });
@@ -46,3 +46,18 @@ sequelize.sync()
   .catch(err => {
     console.error('❌ SQL Sync Error:', err);
   });
+
+// Global Error Handler for final fallback and logging
+app.use((err, req, res, next) => {
+  console.error(">>> [GLOBAL ERROR HANDLER]", {
+    message: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method
+  });
+  res.status(500).json({ 
+    message: "Internal Server Error", 
+    error: err.message,
+    path: req.path
+  });
+});
