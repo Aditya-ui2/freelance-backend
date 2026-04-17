@@ -33,11 +33,11 @@ router.get('/client-dashboard', auth, async (req, res) => {
     const hiredApps = allHiredApps.filter(app => app.Project && String(app.Project.clientId) === String(clientId));
 
     const activeEscrow = hiredApps
-      .filter(app => app.Project.status === 'in-progress')
+      .filter(app => app.Project && app.Project.status === 'in-progress')
       .reduce((sum, app) => sum + (Number(app.bidAmount) || 0), 0);
 
     const totalSpent = hiredApps
-      .filter(app => app.Project.status === 'completed')
+      .filter(app => app.Project && app.Project.status === 'completed')
       .reduce((sum, app) => sum + (Number(app.bidAmount) || 0), 0);
     
     // Recent Transactions
@@ -136,10 +136,10 @@ router.get('/client-dashboard', auth, async (req, res) => {
     res.json({
       activeScans: totalFreelancers,
       stats: [
-        { label: "Posted Projects", value: totalProjects.toString(), icon: "Briefcase", change: "+1", positive: true, color: "bg-blue-50 text-[#1A56DB]" },
-        { label: "Total Proposals", value: totalProposals.toString(), icon: "MessageSquare", change: `+${totalProposals}`, positive: true, color: "bg-amber-50 text-[#F59E0B]" },
-        { label: "Hired Freelancers", value: hiredFreelancersCount.toString(), icon: "User", change: `+${hiredFreelancersCount}`, positive: true, color: "bg-emerald-50 text-[#10B981]" },
-        { label: "Total Spent", value: `$${totalSpent.toLocaleString()}`, icon: "DollarSign", change: "+15%", positive: true, color: "bg-indigo-50 text-[#6366F1]" },
+        { label: "Posted Projects", value: (totalProjects || 0).toString(), icon: "Briefcase", change: "+1", positive: true, color: "bg-blue-50 text-[#1A56DB]" },
+        { label: "Total Proposals", value: (totalProposals || 0).toString(), icon: "MessageSquare", change: `+${totalProposals || 0}`, positive: true, color: "bg-amber-50 text-[#F59E0B]" },
+        { label: "Hired Freelancers", value: (hiredFreelancersCount || 0).toString(), icon: "User", change: `+${hiredFreelancersCount || 0}`, positive: true, color: "bg-emerald-50 text-[#10B981]" },
+        { label: "Total Spent", value: `$${(totalSpent || 0).toLocaleString()}`, icon: "DollarSign", change: "+15%", positive: true, color: "bg-indigo-50 text-[#6366F1]" },
       ],
       weeklyChart,
       chartData: weeklyChart,
@@ -239,14 +239,14 @@ router.get('/freelancer-dashboard', auth, async (req, res) => {
 
     res.json({
       stats: [
-        { label: "Active Bids", value: activeBidsCount.toString(), change: "+1", positive: true, color: "bg-blue-50 text-[#1A56DB]" },
-        { label: "Projects Won", value: projectsWonCount.toString(), change: "+2", positive: true, color: "bg-amber-50 text-[#F59E0B]" },
-        { label: "Total Earnings", value: `$${totalEarnings.toLocaleString()}`, change: `+$${totalEarnings > 0 ? (totalEarnings*0.1).toFixed(0) : 0}`, positive: true, color: "bg-emerald-50 text-[#10B981]" },
-        { label: "Profile Views", value: profileViews.toString(), change: "-5", positive: false, color: "bg-indigo-50 text-[#6366F1]" },
+        { label: "Active Bids", value: (activeBidsCount || 0).toString(), change: "+1", positive: true, color: "bg-blue-50 text-[#1A56DB]" },
+        { label: "Projects Won", value: (projectsWonCount || 0).toString(), change: "+2", positive: true, color: "bg-amber-50 text-[#F59E0B]" },
+        { label: "Total Earnings", value: `$${(totalEarnings || 0).toLocaleString()}`, change: `+$${totalEarnings > 0 ? (totalEarnings*0.1).toFixed(0) : 0}`, positive: true, color: "bg-emerald-50 text-[#10B981]" },
+        { label: "Profile Views", value: (profileViews || 0).toString(), change: "-5", positive: false, color: "bg-indigo-50 text-[#6366F1]" },
       ],
-      weeklyChart,
-      chartData: weeklyChart,
-      totalEarnings: totalEarnings
+      weeklyChart: weeklyChart || [],
+      chartData: weeklyChart || [],
+      totalEarnings: totalEarnings || 0
     });
   } catch (err) {
     console.error(err);
