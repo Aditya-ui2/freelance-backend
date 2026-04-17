@@ -7,6 +7,14 @@ const Application = sequelize.define('Application', {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
+  projectId: {
+    type: DataTypes.UUID,
+    allowNull: true // Explicitly defined for stability
+  },
+  freelancerId: {
+    type: DataTypes.UUID,
+    allowNull: true // Explicitly defined for stability
+  },
   proposal: {
     type: DataTypes.TEXT,
     allowNull: false

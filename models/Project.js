@@ -7,6 +7,10 @@ const Project = sequelize.define('Project', {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
+  clientId: {
+    type: DataTypes.UUID,
+    allowNull: true // Assigned via association but explicitly defined here for sync
+  },
   title: {
     type: DataTypes.STRING,
     allowNull: false
