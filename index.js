@@ -3,17 +3,29 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const sequelize = require('./config/database');
-require('./models'); // Load associations
+const models = require('./models'); // Load associations
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
+// 1. Manual CORS Headers (Insurance against middleware failure)
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// 2. Standard CORS Middleware
 app.use(cors({
-  origin: '*', // Allow all for initial deployment, can be narrowed to Vercel URL later
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
@@ -23,64 +35,36 @@ app.use('/api/projects', require('./routes/projects'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/applications', require('./routes/applications'));
 app.use('/api/analytics', require('./routes/analytics'));
-app.get('/api/test', (req, res) => res.send('API is UP'));
 app.use('/api/messages', require('./routes/messages'));
 app.use('/api/posts', require('./routes/posts'));
 app.use('/api/challenges', require('./routes/challenges'));
 app.use('/api/notifications', require('./routes/notifications'));
 
-// Add a root route for Render health check
+app.get('/api/test', (req, res) => res.json({ status: "UP", timestamp: new Date() }));
+
+// Root route for Render health check
 app.get("/", (req, res) => {
   res.send("Backend running 🚀");
 });
 
-// Sync Database and Start Server
-// NOTE: { alter: true } is safe for development but should be replaced by migrations in production to prevent unexpected data loss
-sequelize.sync({ alter: true })
-  .then(async () => {
-    console.log('✅ SQL Database Synced with Schema Alter');
-    
-    // Auto-seed challenges if empty
+// Diagnostic Route
+app.get('/api/debug/diag', async (req, res) => {
     try {
-        const { Challenge } = require('./models');
-        const count = await Challenge.count();
-        if (count === 0) {
-            console.log('🌱 No challenges found. Seeding default vault tasks...');
-            const seedData = [
-                {
-                  title: 'String Reversal',
-                  description: 'Write a function that takes a string and returns it reversed. Example: "hello" -> "olleh"',
-                  reward: 10,
-                  difficulty: 'Easy',
-                  duration: '15 mins',
-                  testCaseInput: JSON.stringify("antigravity"),
-                  expectedOutput: "ytivargitna"
-                },
-                {
-                  title: 'FizzBuzz Logic',
-                  description: 'Write a function that returns "Fizz" if input is divisible by 3, "Buzz" if by 5, and "FizzBuzz" if by both. Otherwise return the number.',
-                  reward: 15,
-                  difficulty: 'Medium',
-                  duration: '20 mins',
-                  testCaseInput: JSON.stringify(15),
-                  expectedOutput: "FizzBuzz"
-                },
-                {
-                  title: 'Array Sum',
-                  description: 'Write a function that takes an array of numbers and returns their sum. Example: [1,2,3] -> 6',
-                  reward: 20,
-                  difficulty: 'Hard',
-                  duration: '25 mins',
-                  testCaseInput: JSON.stringify([10, 20, 30, 40]),
-                  expectedOutput: "100"
-                }
-            ];
-            await Challenge.bulkCreate(seedData);
-            console.log('✅ Successfully seeded 3 challenges.');
-        }
-    } catch (e) {
-        console.error('⚠️ Auto-seeding failed (continuing anyway):', e.message);
+        const userCount = await models.User.count();
+        res.json({ status: "ok", database: "connected", users: userCount });
+    } catch (err) {
+        res.status(500).json({ status: "error", message: err.message });
     }
+});
+
+// 3. FAST STARTUP: Sync DB and Start Server Immediately
+// We remove { alter: true } because it causes 502 Bad Gateway timeouts on Render
+sequelize.sync()
+  .then(() => {
+    console.log('✅ SQL Database Synced');
+    
+    // Background Seeding (Non-blocking)
+    seedChallenges().catch(err => console.error('Seeding failed:', err.message));
 
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
@@ -88,42 +72,50 @@ sequelize.sync({ alter: true })
   })
   .catch(err => {
     console.error('❌ SQL Sync Error:', err);
+    // Still start the server even if sync fails to prevent 502
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT} (SYNC FAILED)`);
+    });
   });
 
-// Debug/Diagnostics Route
-app.get('/api/debug/diag', async (req, res) => {
-    try {
-        const { User, Project, Application, Challenge } = require('./models');
-        const userCount = await User.count();
-        const projectCount = await Project.count();
-        const appCount = await Application.count();
-        const challengeCount = await Challenge.count();
-        
-        res.json({
-            status: "ok",
-            database: "connected",
-            counts: { users: userCount, projects: projectCount, applications: appCount, challenges: challengeCount },
-            env: { hasDatabaseUrl: !!process.env.DATABASE_URL, hasJwtSecret: !!process.env.JWT_SECRET }
-        });
-    } catch (err) {
-        res.status(500).json({ status: "error", message: err.message, stack: err.stack });
+// Seeding function
+async function seedChallenges() {
+    const { Challenge } = models;
+    const count = await Challenge.count();
+    if (count === 0) {
+        console.log('🌱 Seeding default challenges...');
+        await Challenge.bulkCreate([
+            {
+              title: 'String Reversal',
+              description: 'Write a function that takes a string and returns it reversed.',
+              reward: 10,
+              difficulty: 'Easy',
+              duration: '15 mins',
+              testCaseInput: JSON.stringify("antigravity"),
+              expectedOutput: "ytivargitna"
+            },
+            {
+              title: 'FizzBuzz Logic',
+              description: 'Write a function that returns "Fizz" for multiples of 3, "Buzz" for multiples of 5.',
+              reward: 15,
+              difficulty: 'Medium',
+              duration: '20 mins',
+              testCaseInput: JSON.stringify(15),
+              expectedOutput: "FizzBuzz"
+            }
+        ]);
+        console.log('✅ Challenges seeded.');
     }
-});
+}
 
-// Global Error Handler for final fallback and logging
+// Global Error Handler
 app.use((err, req, res, next) => {
-  console.error(">>> [GLOBAL ERROR HANDLER]", {
-    message: err.message,
-    stack: err.stack,
-    path: req.path,
-    method: req.method
-  });
-  
-  // Return detailed error in non-production or for debugging
+  console.error(">>> [GLOBAL ERROR HANDLER]", err.message);
   res.status(500).json({ 
     message: "Critical Backend Error", 
     error: err.message,
-    path: req.path,
-    stack: err.stack // In a real production app we would hide this, but we need it to fix your bug!
+    path: req.path
   });
 });
+
+module.exports = app;
