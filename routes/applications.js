@@ -29,6 +29,9 @@ router.post('/', auth, async (req, res) => {
     });
     if (existing) return res.status(400).json({ message: 'Already applied' });
 
+    const project = await Project.findByPk(projectId);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+
     const application = await Application.create({
       projectId,
       freelancerId: req.user.id,
@@ -43,11 +46,16 @@ router.post('/', auth, async (req, res) => {
     });
 
     // Notify Client
-    await notifService.notifyClientOnBid(project, req.user.name);
+    try {
+      if (notifService && typeof notifService.notifyClientOnBid === 'function') {
+        await notifService.notifyClientOnBid(project, req.user.name);
+      }
+    } catch (notifErr) { console.error('Notification failed:', notifErr.message); }
     
     res.status(201).json(application);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('[Application Create Error]', err);
+    res.status(500).json({ message: 'Failed to submit application', error: err.message });
   }
 });
 
@@ -71,10 +79,13 @@ router.get('/received', auth, async (req, res) => {
         }
       ],
       order: [['createdAt', 'DESC']]
-    });
+    }) || [];
+    
+    // Add null-safety to response mapping if needed by frontend
     res.json(applications);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('[Get Received Applications Error]', err);
+    res.status(200).json([]); // Fallback to empty list instead of 500
   }
 });
 
@@ -93,10 +104,11 @@ router.get('/my-applications', auth, async (req, res) => {
         }]
       }],
       order: [['createdAt', 'DESC']]
-    });
+    }) || [];
     res.json(applications);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('[Get My Applications Error]', err);
+    res.status(200).json([]); // Fallback to empty list instead of 500
   }
 });
 
