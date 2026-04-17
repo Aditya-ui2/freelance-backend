@@ -58,10 +58,46 @@ app.get('/api/debug/diag', async (req, res) => {
 });
 
 // 3. FAST STARTUP: Sync DB and Start Server Immediately
-// We remove { alter: true } because it causes 502 Bad Gateway timeouts on Render
+async function healDatabase() {
+    try {
+        const qi = sequelize.getQueryInterface();
+        console.log('>>> [DATABASE] Running Schema Heal...');
+        
+        // Check Users for missing 'rating' (The cause of 500/Empty errors)
+        const userCols = ['trustScore', 'pocScore', 'rating', 'projectsCompleted', 'profileViews', 'balance', 'badges'];
+        for (const col of userCols) {
+            try {
+                await qi.addColumn('Users', col, { 
+                    type: (col === 'rating' || col === 'balance') ? 'FLOAT' : (col === 'badges') ? 'TEXT' : 'INTEGER', 
+                    defaultValue: (col === 'badges') ? '[]' : 0 
+                });
+                console.log(`>>> [DATABASE] Added missing column: ${col}`);
+            } catch(e) { /* Already exists */ }
+        }
+
+        // Check Projects for clientId
+        try {
+            await qi.addColumn('Projects', 'clientId', { type: 'UUID', allowNull: true });
+        } catch(e) { }
+
+        // Check Applications for consistency
+        try {
+            await qi.addColumn('Applications', 'projectId', { type: 'UUID', allowNull: true });
+            await qi.addColumn('Applications', 'freelancerId', { type: 'UUID', allowNull: true });
+        } catch(e) { }
+
+        console.log('>>> [DATABASE] Schema Heal Complete');
+    } catch (err) {
+        console.error('>>> [DATABASE] Heal failed:', err.message);
+    }
+}
+
 sequelize.sync()
-  .then(() => {
+  .then(async () => {
     console.log('✅ SQL Database Synced');
+    
+    // Core Fix: Ensure rating column exists on production DB
+    await healDatabase();
     
     // Background Seeding (Non-blocking)
     seedChallenges().catch(err => console.error('Seeding failed:', err.message));
