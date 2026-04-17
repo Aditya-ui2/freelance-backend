@@ -44,7 +44,11 @@ router.post('/conversations', auth, async (req, res) => {
     console.log(`💬 CHAT_START_REQUEST: From ${req.user.id} to ${participantId}`);
 
     if (participantId === req.user.id) {
-      return res.status(400).json({ message: 'Cannot chat with yourself' });
+      console.warn(`⚠️ CHAT_BLOCK: User ${req.user.id} tried to chat with themselves.`);
+      return res.status(400).json({ 
+        message: 'Cannot chat with yourself. You are logged in as this freelancer or this is your own application.',
+        details: { userId: req.user.id, participantId }
+      });
     }
 
     // 1. Verify participant exists
