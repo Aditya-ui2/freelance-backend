@@ -122,36 +122,42 @@ router.get('/my-projects', auth, async (req, res) => {
   try {
     const projects = await Project.findAll({
       where: { clientId: req.user.id }
-    });
+    }) || [];
 
     // Simplify data structure for frontend (Manual fetch to ensure stability)
     const plainProjects = await Promise.all(projects.map(async (p) => {
-      const projectJson = p.get({ plain: true });
-      const apps = await Application.findAll({
-        where: { projectId: projectJson.id, status: 'hired' },
-        include: [{ 
-          model: User, 
-          as: 'Freelancer', 
-          attributes: ['id', 'name', 'avatar', 'title', 'skills', 'bio', 'rating'] 
-        }]
-      });
-      
-      projectJson.ProjectApplications = apps.map(app => {
-        const appJson = app.get({ plain: true });
-        return {
-          ...appJson,
-          freelancerName: appJson.Freelancer?.name || 'Hired Talent',
-          freelancerAvatar: appJson.Freelancer?.avatar,
-          freelancerInfo: appJson.Freelancer // Store full data for modal
-        };
-      });
-      
-      return projectJson;
+      try {
+        const projectJson = p.get({ plain: true });
+        const apps = await Application.findAll({
+          where: { projectId: projectJson.id, status: 'hired' },
+          include: [{ 
+            model: User, 
+            as: 'Freelancer', 
+            attributes: ['id', 'name', 'avatar', 'title', 'skills', 'bio', 'rating'] 
+          }]
+        }) || [];
+        
+        projectJson.ProjectApplications = apps.map(app => {
+          const appJson = app.get({ plain: true });
+          return {
+            ...appJson,
+            freelancerName: appJson.Freelancer?.name || 'Hired Talent',
+            freelancerAvatar: appJson.Freelancer?.avatar,
+            freelancerInfo: appJson.Freelancer || {}
+          };
+        });
+        
+        return projectJson;
+      } catch (innerErr) {
+        console.error(`[Project Map Error] Project ID: ${p.id}`, innerErr);
+        return p.get({ plain: true });
+      }
     }));
 
     res.json(plainProjects);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('[GEt My Projects Error]', err);
+    res.status(500).json({ message: "Failed to load projects", error: err.message });
   }
 });
 
