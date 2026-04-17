@@ -96,6 +96,42 @@ router.get('/received', auth, async (req, res) => {
   }
 });
 
+// Get hired applications (for Hired Talent view)
+router.get('/hired', auth, async (req, res) => {
+  try {
+    if (req.user.userType !== 'client') return res.status(403).json({ message: 'Only clients can view hired talent' });
+
+    const rawApplications = await Application.findAll({
+      where: { status: 'hired' },
+      include: [
+        {
+          model: Project,
+          as: 'Project',
+          attributes: ['id', 'clientId', 'title', 'skills', 'budget']
+        },
+        {
+          model: User,
+          as: 'Freelancer',
+          attributes: ['id', 'name', 'avatar', 'title', 'skills', 'badges', 'trustScore', 'pocScore', 'rating']
+        }
+      ],
+      order: [['updatedAt', 'DESC']]
+    }) || [];
+
+    // Filter for projects owned by this client
+    const filtered = rawApplications.filter(app => {
+        try {
+            return app.Project && String(app.Project.clientId) === String(req.user.id);
+        } catch (e) { return false; }
+    });
+
+    res.json(filtered);
+  } catch (err) {
+    console.error('[Get Hired Applications FAILURE]', err);
+    res.status(200).json([]);
+  }
+});
+
 // Get my applications - ABSOLUTE ZERO STABILITY VERSION
 router.get('/my-applications', auth, async (req, res) => {
   try {
