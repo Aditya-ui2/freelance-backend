@@ -90,6 +90,26 @@ sequelize.sync({ alter: true })
     console.error('❌ SQL Sync Error:', err);
   });
 
+// Debug/Diagnostics Route
+app.get('/api/debug/diag', async (req, res) => {
+    try {
+        const { User, Project, Application, Challenge } = require('./models');
+        const userCount = await User.count();
+        const projectCount = await Project.count();
+        const appCount = await Application.count();
+        const challengeCount = await Challenge.count();
+        
+        res.json({
+            status: "ok",
+            database: "connected",
+            counts: { users: userCount, projects: projectCount, applications: appCount, challenges: challengeCount },
+            env: { hasDatabaseUrl: !!process.env.DATABASE_URL, hasJwtSecret: !!process.env.JWT_SECRET }
+        });
+    } catch (err) {
+        res.status(500).json({ status: "error", message: err.message, stack: err.stack });
+    }
+});
+
 // Global Error Handler for final fallback and logging
 app.use((err, req, res, next) => {
   console.error(">>> [GLOBAL ERROR HANDLER]", {
@@ -98,9 +118,12 @@ app.use((err, req, res, next) => {
     path: req.path,
     method: req.method
   });
+  
+  // Return detailed error in non-production or for debugging
   res.status(500).json({ 
-    message: "Internal Server Error", 
+    message: "Critical Backend Error", 
     error: err.message,
-    path: req.path
+    path: req.path,
+    stack: err.stack // In a real production app we would hide this, but we need it to fix your bug!
   });
 });
