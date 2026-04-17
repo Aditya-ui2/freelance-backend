@@ -73,6 +73,10 @@ const User = sequelize.define('User', {
     type: DataTypes.INTEGER,
     defaultValue: 0
   },
+  rating: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0
+  },
   badges: {
     type: DataTypes.TEXT,
     defaultValue: '[]',

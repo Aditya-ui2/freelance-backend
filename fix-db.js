@@ -1,49 +1,50 @@
 const sequelize = require('./config/database');
 
-async function fixDatabase() {
+async function fix() {
   try {
-    console.log('📊 Starting manual database migration for SQLite...');
-    const queryInterface = sequelize.getQueryInterface();
+    await sequelize.authenticate();
+    const qi = sequelize.getQueryInterface();
+    
+    console.log('--- FORCING SCHEMA RECOVERY ---');
+    
+    const tables = await qi.showAllTables();
+    console.log('Tables found:', tables);
 
-    // Fix Users table
+    // 1. Check Projects for clientId
     try {
-      await queryInterface.addColumn('Users', 'badges', { type: require('sequelize').DataTypes.JSON });
-      console.log('✅ Added badges to Users');
-    } catch (e) { console.log('⚠️ badges already exists or failed'); }
+        await qi.addColumn('Projects', 'clientId', { type: 'UUID', allowNull: true });
+        console.log('Added clientId to Projects');
+    } catch(e) { console.log('clientId likely already exists in Projects'); }
 
+    // 2. Check Applications for foreign keys
     try {
-      await queryInterface.addColumn('Users', 'pocScore', { type: require('sequelize').DataTypes.INTEGER, defaultValue: 0 });
-      console.log('✅ Added pocScore to Users');
-    } catch (e) { console.log('⚠️ pocScore already exists or failed'); }
-
-    // Fix Projects table
-    try {
-      await queryInterface.addColumn('Projects', 'isNewTalentFriendly', { type: require('sequelize').DataTypes.BOOLEAN, defaultValue: false });
-      console.log('✅ Added isNewTalentFriendly to Projects');
-    } catch (e) { console.log('⚠️ isNewTalentFriendly already exists or failed'); }
-
-    try {
-      await queryInterface.addColumn('Projects', 'requiresPOC', { type: require('sequelize').DataTypes.BOOLEAN, defaultValue: true });
-      console.log('✅ Added requiresPOC to Projects');
-    } catch (e) { console.log('⚠️ requiresPOC already exists or failed'); }
-
-    // Fix Applications table
-    try {
-      await queryInterface.addColumn('Applications', 'pocContent', { type: require('sequelize').DataTypes.TEXT });
-      console.log('✅ Added pocContent to Applications');
-    } catch (e) { console.log('⚠️ pocContent already exists or failed'); }
+        await qi.addColumn('Applications', 'projectId', { type: 'UUID', allowNull: true });
+        console.log('Added projectId to Applications');
+    } catch(e) { console.log('projectId likely already exists in Applications'); }
 
     try {
-      await queryInterface.addColumn('Applications', 'stakedBadgeId', { type: require('sequelize').DataTypes.STRING });
-      console.log('✅ Added stakedBadgeId to Applications');
-    } catch (e) { console.log('⚠️ stakedBadgeId already exists or failed'); }
+        await qi.addColumn('Applications', 'freelancerId', { type: 'UUID', allowNull: true });
+        console.log('Added freelancerId to Applications');
+    } catch(e) { console.log('freelancerId likely already exists in Applications'); }
 
-    console.log('🚀 Migration complete!');
+    // 3. Check Users for missing stats
+    const userCols = ['trustScore', 'pocScore', 'rating', 'projectsCompleted', 'profileViews', 'balance', 'badges'];
+    for (const col of userCols) {
+        try {
+            await qi.addColumn('Users', col, { 
+                type: (col === 'rating' || col === 'balance') ? 'FLOAT' : (col === 'badges') ? 'TEXT' : 'INTEGER', 
+                defaultValue: (col === 'badges') ? '[]' : 0 
+            });
+            console.log(`Added ${col} to Users`);
+        } catch(e) { console.log(`${col} likely already exists in Users`); }
+    }
+
+    console.log('✅ DATABASE HEALED');
     process.exit(0);
   } catch (err) {
-    console.error('❌ Migration failed:', err);
+    console.error('Heal failed:', err);
     process.exit(1);
   }
 }
 
-fixDatabase();
+fix();
