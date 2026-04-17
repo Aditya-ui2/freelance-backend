@@ -223,16 +223,30 @@ router.get('/freelancer-dashboard', auth, async (req, res) => {
 
     // 3. Weekly buckets
     const weeklyChart = [];
+    days.forEach((day, index) => {
+      const dayOfWeek = (index + 1) % 7; 
+      const dayEarnings = myApps
+        .filter(a => {
+          const updatedDate = new Date(a.updatedAt);
+          const isPaid = ['hired', 'accepted'].includes(a.status) || (a.Project && a.Project.status === 'completed');
+          return isPaid && updatedDate.getDay() === dayOfWeek && updatedDate >= startOfThisWeek;
+        })
+        .reduce((sum, app) => sum + (Number(app.bidAmount) || 0), 0);
+      
+      cumulativeSum += dayEarnings;
+      weeklyChart.push({ day, earnings: cumulativeSum });
+    });
+
     res.json({
       stats: [
         { label: "Active Bids", value: activeBidsCount.toString(), change: "+1", positive: true, color: "bg-blue-50 text-[#1A56DB]" },
         { label: "Projects Won", value: projectsWonCount.toString(), change: "+2", positive: true, color: "bg-amber-50 text-[#F59E0B]" },
-        { label: "Total Earnings", value: `$${allTimeEarnings.toLocaleString()}`, change: `+$${allTimeEarnings > 0 ? (allTimeEarnings*0.1).toFixed(0) : 0}`, positive: true, color: "bg-emerald-50 text-[#10B981]" },
+        { label: "Total Earnings", value: `$${totalEarnings.toLocaleString()}`, change: `+$${totalEarnings > 0 ? (totalEarnings*0.1).toFixed(0) : 0}`, positive: true, color: "bg-emerald-50 text-[#10B981]" },
         { label: "Profile Views", value: profileViews.toString(), change: "-5", positive: false, color: "bg-indigo-50 text-[#6366F1]" },
       ],
       weeklyChart,
       chartData: weeklyChart,
-      totalEarnings: allTimeEarnings
+      totalEarnings: totalEarnings
     });
   } catch (err) {
     console.error(err);
